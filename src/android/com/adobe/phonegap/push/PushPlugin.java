@@ -6,7 +6,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 
-import com.google.android.gcm.GCMRegistrar;
+import com.google.android.gms.iid.InstanceID;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
@@ -17,6 +17,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.Iterator;
 
 public class PushPlugin extends CordovaPlugin implements PushConstants {
@@ -48,6 +49,7 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
                     JSONObject jo = null;
 
                     Log.v(LOG_TAG, "execute: data=" + data.toString());
+                    String token;
 
                     try {
                         jo = data.getJSONObject(0).getJSONObject(ANDROID);
@@ -58,8 +60,17 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
 
                         Log.v(LOG_TAG, "execute: senderID=" + senderID);
 
-                        GCMRegistrar.register(getApplicationContext(), senderID);
+                        token = InstanceID.getInstance(getApplicationContext()).getToken(senderID, GCM);
+
+                        JSONObject json = new JSONObject().put(REGISTRATION_ID, token);
+
+                        Log.v(LOG_TAG, "onRegistered: " + json.toString());
+
+                        PushPlugin.sendEvent( json );
                     } catch (JSONException e) {
+                        Log.e(LOG_TAG, "execute: Got JSON Exception " + e.getMessage());
+                        callbackContext.error(e.getMessage());
+                    } catch (IOException e) {
                         Log.e(LOG_TAG, "execute: Got JSON Exception " + e.getMessage());
                         callbackContext.error(e.getMessage());
                     }
@@ -94,11 +105,15 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
         } else if (UNREGISTER.equals(action)) {
             cordova.getThreadPool().execute(new Runnable() {
                 public void run() {
-                    GCMRegistrar.unregister(getApplicationContext());
-
-                    Log.v(LOG_TAG, "UNREGISTER");
-                    callbackContext.success();
+                    try {
+                        InstanceID.getInstance(getApplicationContext()).deleteInstanceID();
+                        Log.v(LOG_TAG, "UNREGISTER");
+                        callbackContext.success();
+                    } catch (IOException e) {
+                        Log.e(LOG_TAG, "execute: Got JSON Exception " + e.getMessage());
+                        callbackContext.error(e.getMessage());
                 }
+            }
             });
         } else {
             Log.e(LOG_TAG, "Invalid action : " + action);
