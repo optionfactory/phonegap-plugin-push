@@ -49,18 +49,34 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
                     JSONObject jo = null;
 
                     Log.v(LOG_TAG, "execute: data=" + data.toString());
-                    String token;
+                    SharedPreferences sharedPref = getApplicationContext().getSharedPreferences(COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
+                    String token = null;
+                    String senderID = null;
 
                     try {
                         jo = data.getJSONObject(0).getJSONObject(ANDROID);
 
                         Log.v(LOG_TAG, "execute: jo=" + jo.toString());
 
-                        String senderID = jo.getString(SENDER_ID);
+                        senderID = jo.getString(SENDER_ID);
 
                         Log.v(LOG_TAG, "execute: senderID=" + senderID);
 
-                        token = InstanceID.getInstance(getApplicationContext()).getToken(senderID, GCM);
+                        String savedSenderID = sharedPref.getString(SENDER_ID, "");
+                        String savedRegID = sharedPref.getString(REGISTRATION_ID, "");
+
+                        // first time run get new token
+                        if ("".equals(savedSenderID) && "".equals(savedRegID)) {
+                            token = InstanceID.getInstance(getApplicationContext()).getToken(senderID, GCM);
+                        }
+                        // new sender ID, re-register
+                        else if (!savedSenderID.equals(senderID)) {
+                            token = InstanceID.getInstance(getApplicationContext()).getToken(senderID, GCM);
+                        }
+                        // use the saved one
+                        else {
+                            token = sharedPref.getString(REGISTRATION_ID, "");
+                        }
 
                         JSONObject json = new JSONObject().put(REGISTRATION_ID, token);
 
@@ -76,7 +92,6 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
                     }
 
                     if (jo != null) {
-                        SharedPreferences sharedPref = getApplicationContext().getSharedPreferences(COM_ADOBE_PHONEGAP_PUSH, Context.MODE_PRIVATE);
                         SharedPreferences.Editor editor = sharedPref.edit();
                         try {
                             editor.putString(ICON, jo.getString(ICON));
@@ -92,6 +107,8 @@ public class PushPlugin extends CordovaPlugin implements PushConstants {
                         editor.putBoolean(VIBRATE, jo.optBoolean(VIBRATE, true));
                         editor.putBoolean(CLEAR_NOTIFICATIONS, jo.optBoolean(CLEAR_NOTIFICATIONS, true));
                         editor.putBoolean(FORCE_SHOW, jo.optBoolean(FORCE_SHOW, false));
+                        editor.putString(SENDER_ID, senderID);
+                        editor.putString(REGISTRATION_ID, token);
                         editor.commit();
                     }
 
