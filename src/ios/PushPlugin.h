@@ -40,6 +40,8 @@
 @property (nonatomic, copy) NSString *callbackId;
 @property (nonatomic, copy) NSString *notificationCallbackId;
 @property (nonatomic, copy) NSString *callback;
+@property (nonatomic, strong) NSMutableDictionary *handlers;
+@property (nonatomic) NSInteger nextHandlerId;
 
 @property (nonatomic, strong) NSDictionary *notificationMessage;
 @property BOOL                          isInline;
@@ -51,6 +53,7 @@
 - (void)didFailToRegisterForRemoteNotificationsWithError:(NSError *)error;
 
 - (void)setNotificationMessage:(NSDictionary *)notification;
-- (void)notificationReceived;
+- (void)doneWithNotification:(CDVInvokedUrlCommand*)command;
+- (void)notificationReceived:(void (^)(UIBackgroundFetchResult result))handler;
 
 @end

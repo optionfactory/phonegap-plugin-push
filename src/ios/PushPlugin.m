@@ -33,7 +33,14 @@
 @synthesize callbackId;
 @synthesize notificationCallbackId;
 @synthesize callback;
+@synthesize handlers;
+@synthesize nextHandlerId;
 
+- (void)pluginInitialize
+{
+    self.nextHandlerId = 0;
+    self.handlers = [NSMutableDictionary dictionaryWithCapacity:4];   
+}
 
 - (void)unregister:(CDVInvokedUrlCommand*)command;
 {
@@ -46,7 +53,7 @@
 - (void)init:(CDVInvokedUrlCommand*)command;
 {
     [self.commandDelegate runInBackground:^ {
-        
+
     NSLog(@"Push Plugin register called");
     self.callbackId = command.callbackId;
     
@@ -111,7 +118,7 @@
 #endif
     
     if (notificationMessage)			// if there is a pending startup notification
-        [self notificationReceived];	// go ahead and process it
+        [self notificationReceived:NULL];	// go ahead and process it
 
     }];
 }
@@ -192,8 +199,27 @@
     [self failWithMessage:@"" withError:error];
 }
 
-- (void)notificationReceived {
+- (void)doneWithNotification:(CDVInvokedUrlCommand*)command;
+{
+    NSLog(@"doneWithTask: %@", command.arguments);
+    NSInteger handlerId = [[command.arguments objectAtIndex:0] integerValue];
+    void (^handler)(UIBackgroundFetchResult) = (void (^)(UIBackgroundFetchResult result))[self.handlers objectForKey:[NSNumber numberWithInt:handlerId]];
+    [self.handlers removeObjectForKey:[NSNumber numberWithInt:handlerId]];
+    handler(UIBackgroundFetchResultNewData);
+}
+
+- (void)notificationReceived:(void (^)(UIBackgroundFetchResult result))handler {
     NSLog(@"Notification received");
+    if (!handler) {
+        UIBackgroundTaskIdentifier taskId = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+            NSLog(@"Background task ran out of time");
+        }];
+        
+        handler = ^(UIBackgroundFetchResult result) { [[UIApplication sharedApplication] endBackgroundTask:taskId]; };
+    }
+    
+    int handlerId = self.nextHandlerId++;
+    [self.handlers setObject:handler forKey:[NSNumber numberWithInt:handlerId]];
     
     if (notificationMessage && self.callbackId != nil)
     {
@@ -247,6 +273,7 @@
         } else {
             [additionalData setObject:[NSNumber numberWithBool:NO] forKey:@"foreground"];
         }
+        [message setObject:[NSNumber numberWithInt: handlerId] forKey:@"handlerId"];
         
         [message setObject:additionalData forKey:@"additionalData"];
         
@@ -256,6 +283,9 @@
         [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
         
         self.notificationMessage = nil;
+    } else {
+        [self.handlers removeObjectForKey:[NSNumber numberWithInt:handlerId]];
+        handler(UIBackgroundFetchResultNewData);
     }
 }
 

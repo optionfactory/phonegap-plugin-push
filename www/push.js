@@ -46,7 +46,11 @@ var PushNotification = function(options) {
             
             executeFunctionByName(result.callback, window, result);
         } else if (result) {
-            that.emit('notification', result);
+            that.emit('notification', result, function() {
+                if (typeof result.handlerId == "number") {
+                    exec(success, fail, 'PushNotification', 'doneWithNotification', [result.handlerId]);
+                }
+            });
         }
     };
 
